@@ -1,0 +1,189 @@
+apply plugin: 'java'
+
+ext.libsFolder	= "$buildDir/unmanaged"
+ext.staticLibs	= "$projectDir/lib"
+
+repositories {
+	mavenLocal()
+	mavenCentral()
+
+	flatDir {
+		dirs staticLibs
+	}
+
+	flatDir {
+		dirs libsFolder
+	}
+}
+
+dependencies {
+	
+	compile	group: 'org.ow2.asm',			name: 'asm-all',				version: '5.0.3'
+	compile group: 'org.smali',				name: 'smali',					version: '2.0.3'
+	compile group: 'org.smali',				name: 'baksmali',				version: '2.0.3'
+	compile group: 'commons-codec',			name: 'commons-codec',			version: '1.9'
+	compile group: 'commons-io',			name: 'commons-io',				version: '2.4'
+	compile group: 'org.apache.commons',	name: 'commons-lang3',			version: '3.3.2'
+	compile group: 'org.imgscalr',			name: 'imgscalr-lib',			version: '4.2'
+	compile group: 'org.tinyjee.jgraphx',	name: 'jgraphx',				version: '2.3.0.5'
+	compile group: 'com.fifesoft',			name: 'rsyntaxtextarea',		version: '2.5.6'
+	compile group: 'org.codehaus.janino',	name: 'commons-compiler',		version: '2.7.8'
+	compile group: 'org.codehaus.janino',	name: 'commons-compiler-jdk',	version: '2.7.8'
+	
+	// Unamanged dependencies:
+	//	See task 'unmanagedFiles' for more info
+
+	// Bibl's byteanalysis library
+	compile name: 'byteanalysis',	version: '1.0'
+	compile name: 'fernflower',		version: '2015'
+
+	// For auto-downloaded dependencies:
+	compile name: 'apktool'
+	compile name: 'cfr'
+	compile name: 'dex-ir',			version: '1.12'
+	compile name: 'dex-reader',		version: '1.15'
+	compile name: 'dex-tools',		version: '0.0.9.15'
+	compile name: 'dex-translator',	version: '0.0.9.15'
+	compile name: 'dx'
+	compile name: 'jasmin',			version: 'p2.5'
+	compile name: 'jar-rename',		version: '1.6'
+	compile name: 'procyon'
+}
+
+/*
+ * Unmanaged (e.g. not in a repository) dependencies
+ **/
+
+import java.io.File
+
+class Download extends DefaultTask {
+	@Input
+	String source
+
+	@OutputFile
+	File target
+
+	@TaskAction
+	void download() {
+		ant.get(src: source, dest: target)
+	}
+}
+
+class Extract extends DefaultTask {
+	@Input
+	String source
+
+	@OutputDirectory
+	File into
+
+	String pattern
+
+	@TaskAction
+	void unzip() {
+		ant.unzip(src: source, dest: into, overwrite: false) {
+			patternset() {
+				include(name: pattern)
+			}
+			mapper(type: 'flatten')
+		}
+	}
+}
+
+/*
+ * Third-party programs
+ */
+
+def dexToJarDist = "$libsFolder/dext2jar_dist.zip"
+
+task dexToJar(type: Download) {
+	source = "http://sourceforge.net/projects/dex2jar.mirror/files/dex2jar-0.0.9.15.zip/download"
+	target = file(dexToJarDist)
+}
+
+task procyonBin(type: Download) {
+	source = 'https://bitbucket.org/mstrobel/procyon/downloads/procyon-decompiler-0.5.28.jar'
+	target = file("$libsFolder/procyon.jar")
+}
+
+task cfrBin(type: Download) {
+	source = 'http://www.benf.org/other/cfr/cfr_0_98.jar'
+	target = file("$libsFolder/cfr.jar")
+}
+
+task apkToolBin(type: Download) {
+	source = 'https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.0.0rc4.jar'
+	target = file("$libsFolder/apktool.jar")
+}
+
+task jarRenameBin(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern	= 'dex2jar-*/lib/jar-rename-*.jar'
+}
+
+task unmanagedBinaries(dependsOn: [procyonBin, cfrBin, apkToolBin, jarRenameBin])
+task cleanUnmanagedBinaries(dependsOn: [cleanProcyonBin, cleanCfrBin, cleanApkToolBin, cleanJarRenameBin])
+
+/*
+ * Third-party libraries
+ */
+
+// TODO: Bibl's banalyser needs a remote
+
+task jasminLib(type: Extract, dependsOn: dexToJar) {	
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern = 'dex2jar-*/lib/jasmin-*.jar'
+}
+
+task dxLib(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern = 'dex2jar-*/lib/dx.jar'
+}
+
+/*
+ * dex processing libraries
+ */
+
+task dexTools(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern	= 'dex2jar-*/lib/dex-tools-*.jar'
+}
+
+task dexReader(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern	= 'dex2jar-*/lib/dex-reader-*.jar'
+}
+
+task dexTranslator(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern	= 'dex2jar-*/lib/dex-translator-*.jar'
+}
+
+task dexIr(type: Extract, dependsOn: dexToJar) {
+	source	= dexToJarDist
+	into	= file(libsFolder)
+	pattern	= 'dex2jar-*/lib/dex-ir-*.jar'
+}
+
+task dexLibs(dependsOn: [dexTools, dexReader, dexTranslator, dexIr])
+task cleanDexLibs(dependsOn: [cleanDexTools, cleanDexReader, cleanDexTranslator, cleanDexIr])
+
+/*
+ * Unmanaged dependency phony-task
+ */
+
+task unmanagedLibs(dependsOn: [jasminLib, dxLib, dexLibs])
+
+task cleanUnmanagedLibs(dependsOn: [cleanJasminLib, cleanDxLib, cleanDexLibs])
+
+task unmanagedFiles(dependsOn: [unmanagedBinaries, unmanagedLibs])
+task cleanUnmanagedFiles(dependsOn: [cleanUnmanagedBinaries, cleanUnmanagedLibs])
+
+tasks['dependencies'].dependsOn unmanagedFiles
+compileJava.dependsOn unmanagedFiles
+clean.dependsOn cleanUnmanagedFiles
